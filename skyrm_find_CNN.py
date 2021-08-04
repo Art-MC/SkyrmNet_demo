@@ -52,7 +52,7 @@ class trained_NN(object):
         
         prediction2 = center_crop_im(prediction2, (dimy,dimx), dim_order_in="channels_last")[:,:,::-1]
         self.prediction = prediction2
-        coordinates_e = FindAtoms(self.prediction[None,...], threshold=thresh).get_all_coordinates()
+        coordinates_e = Finder(self.prediction[None,...], threshold=thresh).get_all_coordinates()
         centers = coordinates_e[0][:,:2]
         return centers
 
@@ -92,7 +92,7 @@ def center_crop_im(image, shape, dim_order_in="channels_last"):
     elif dim_order_in == "channels_first":
         return image[:,cropt:-cropb, cropl:-cropr]
 
-class FindAtoms:
+class Finder:
     '''
     Transforms pixel data from NN output into coordinate data
     '''
@@ -117,12 +117,12 @@ class FindAtoms:
         self.dist_edge = dist_edge
                        
     def get_all_coordinates(self):
-        '''Extract all atomic coordinates in image
+        '''Extract all object center coordinates in image
         via CoM method & store data as a dictionary
         (key: frame number)'''
         
         def find_com(image_data):
-            '''Find atoms via center of mass methods'''
+            '''Find objects via center of mass methods'''
             labels, nlabels = ndi.label(image_data)
             coordinates = np.array(
                 ndi.center_of_mass(

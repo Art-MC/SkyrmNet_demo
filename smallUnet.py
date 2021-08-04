@@ -1,4 +1,5 @@
-"""A fully convolutional U-net like neural network for image segmentation.  
+"""
+A fully convolutional U-net like neural network for image segmentation.  
 """
 
 import torch

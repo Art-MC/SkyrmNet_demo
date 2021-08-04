@@ -1,21 +1,14 @@
+"""
+helper functions for when working with image data
+"""
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from scipy import ndimage as ndi
 import skimage
 from ipywidgets import interact
-
-
-
-"""
-helper functions for when working with any image data
-
-None of these functions should take class objects (like Tilt_im or Skyrm or State)
-but should work on raw arrays to keep them wide reaching
-those types of functions can go in skyrm_helpers or similar files
-
-
-"""
 
 
 def show_im(image, title=None, simple=False, origin='upper', cbar=True,
@@ -231,20 +224,19 @@ def bbox(img, digits=10):
     xmin, xmax = np.where(cols)[0][[0, -1]]
     return img[ymin:ymax+1, xmin:xmax+1]
 
+
 def norm_image(image):
     image = image-np.min(image)
     image = image/np.max(image)
     return image
 
 
-
 def filter_hotpix(image, thresh=12, show=False):
     """ 
-    look for pixel values with an intensity >3 std outside of mean of surrounding
-    8 pixels. If found, replace with median value of those pixels 
+    Look for pixel values with an intensity > `thresh` standard deviations
+    outside of mean of surrounding 8 pixels. 
+    If found, replace with median value of those pixels 
     """    
-
-    # for now, return binary image 1 where filtered, 0 where not 
     kernel = np.array([[1,1,1],[1,0,1],[1,1,1]]).astype('float')
     kernel = kernel / np.sum(kernel)
     image = image.astype('float')
@@ -264,23 +256,6 @@ def filter_hotpix(image, thresh=12, show=False):
     if numbads > 0: 
         filtered = filter_hotpix(filtered, thresh=thresh, show=False)
     return filtered
-
-
-def local_meanstd(image): 
-    """
-    calculate mean and standard deviation of the surrounding 8 
-    pixels for each pixel in an image. 
-    From Var(X) = E(X^2) - (E(X))^2
-    """
-    kernel = np.array([[1,1,1],[1,0,1],[1,1,1]]).astype('float')
-    kernel = kernel / np.sum(kernel)
-    image = image.astype('float')
-    mean = ndi.convolve(image, kernel, mode='reflect')
-    im2 = image**2
-    Ex2 = ndi.convolve(im2, kernel, mode='reflect')
-    Ex_2 = mean**2
-    std = np.sqrt(Ex2 - Ex_2)
-    return mean, std
 
 
 def dist(ny, nx, shift=False):
@@ -308,7 +283,7 @@ def dist(ny, nx, shift=False):
 
 
 def dist4(dim, norm=False): 
-    # 4-fold symmetric distance map even at small radiuses
+    # 4-fold symmetric distance map, symmetric even at small radiuses
     d2 = dim//2
     a = np.arange(d2)
     b = np.arange(d2)
@@ -326,7 +301,7 @@ def dist4(dim, norm=False):
 
 
 def circ4(dim, rad): 
-    # 4-fold symmetric circle even at small dimensions
+    # 4-fold symmetric circle, symmetric even at small dimensions
     return (dist4(dim)<rad).astype('int')
 
 
