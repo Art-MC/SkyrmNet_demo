@@ -4,18 +4,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import scipy.ndimage as ndi
-import cv2
+#import cv2
 import numpy as np
 
 
 class trained_NN(object):
 
-    def __init__(self, path, cuda=True): 
+    def __init__(self, path, cuda=True, gpu=0): 
         model = smallUnet()
         self.cuda = cuda
         if cuda: 
             model.load_state_dict(torch.load(path))
-            model.cuda()
+            model.cuda(gpu)
 
         else:
             print('loading without cuda')
@@ -24,7 +24,7 @@ class trained_NN(object):
         model.eval()
         self.model =  model 
 
-    def find_skyrms(self, image, tilt_dir, thresh=0.5): 
+    def find_skyrms(self, image, tilt_dir, thresh=0.5, gpu=0): 
     
         ## apply rotation 
         dimy, dimx = image.shape
@@ -36,7 +36,7 @@ class trained_NN(object):
         image4d = image2[None, None, ...]
         # Convert to pytorch format and move to GPU
         if self.cuda: 
-            image4d_ = torch.from_numpy(image4d).float().cuda()
+            image4d_ = torch.from_numpy(image4d).float().cuda(gpu)
         else:
             image4d_ = torch.from_numpy(image4d).float()
 
@@ -136,8 +136,11 @@ class Finder:
             category = np.empty((0, 1))
             # we assume that class backgrpund is always the last one
             for ch in range(decoded_img.shape[2]-1):
-                _, decoded_img_c = cv2.threshold(
-                    decoded_img[:, :, ch], self.threshold, 1, cv2.THRESH_BINARY)
+                #_, decoded_img_c = cv2.threshold(
+                    #decoded_img[:, :, ch], self.threshold, 1, cv2.THRESH_BINARY)
+                decoded_img_c = np.array((decoded_img[:,:,ch] > self.threshold), dtype='int')
+                
+                
 
                 dilated_img_c = ndi.binary_dilation(decoded_img_c, iterations=2)
                 coord = find_com(dilated_img_c)

@@ -34,9 +34,10 @@ class smallUnet(nn.Module):
                  batch_norm=True,
                  upsampling_mode="nearest"):
         super(smallUnet, self).__init__()
-        dropout_vals = [.1, .2, .1] if use_dropout else [0, 0, 0]
+        dropout_vals = [.1, .2, .1] if use_dropout else [0, 0, 0]               
+        
         self.c1 = conv2dblock(
-            1, 1, nb_filters,
+            nb_layers=1, input_channels=1, output_channels=nb_filters,
             use_batchnorm=batch_norm)
 
         self.c2 = conv2dblock(
@@ -78,7 +79,8 @@ class smallUnet(nn.Module):
             1, nb_filters*2, nb_filters,
             use_batchnorm=batch_norm)
         
-        self.px = nn.Conv2d(nb_filters, nb_classes, 1, 1, 0)
+        self.px = nn.Conv2d(in_channels=nb_filters, out_channels=nb_classes, 
+                            kernel_size=1, stride=1, padding=0)
         self.maxpool = F.max_pool2d
         self.concat = torch.cat
 
