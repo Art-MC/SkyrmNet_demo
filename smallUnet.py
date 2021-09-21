@@ -164,23 +164,13 @@ class upsample_block(nn.Module):
         self.conv = nn.Conv2d(
             input_channels, output_channels,
             kernel_size=1, stride=1, padding=0)
-        self.upsample2x = nn.ConvTranspose2d(
-            input_channels,
-            input_channels,
-            kernel_size=3,
-            stride=2,
-            padding=(1, 1),
-            output_padding=(1, 1))
 
     def forward(self, x):
         '''Defines a forward path'''
-        # pdb.set_trace()
-        if self.scale_factor == 2:
-            x  = self.upsample2x(x)
-        else:
-            x = F.interpolate(
-                x, scale_factor=self.scale_factor, mode=self.mode)
+        x = F.interpolate(
+            x, scale_factor=self.scale_factor, mode=self.mode)
         return self.conv(x)
+
 
 def rng_seed(seed):
     torch.manual_seed(seed)
