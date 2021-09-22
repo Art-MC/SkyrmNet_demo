@@ -1,0 +1,25 @@
+        NN name: skNet_batch1_210921
+        final NN savepath: /home/amccray/code/SkX_NN/NN_trained/skNet_batch1_210921_final.pt
+        images shape: (3000, 256, 256)
+        labels shape: (3000, 256, 256, 1)
+        test split: 0.2
+        batch size: 64
+        epochs: 600
+
+        number channels: 1
+        dim_order_in: channel_last
+        dim_order_out: channel_first
+
+        Noise added to training/test data using atomai.transforms.datatransform():
+        gauss_noise: [1, 150]
+        poisson_noise: [10, 45]
+        salt_and_pepper: [0, 20]
+        contrast: [3, 18]
+        blur: [1, 50]
+        zoom: False
+        rotation: False
+        seed: 42
+
+        notes: 
+Trained on rotated Skx data such that tilt axis is along x axis
+(contrast is left/right)
