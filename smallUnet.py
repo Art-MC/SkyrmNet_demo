@@ -1,15 +1,16 @@
 """
-A fully convolutional U-net like neural network for image segmentation.  
+A fully convolutional U-net like neural network for image segmentation.
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import numpy as np 
+import numpy as np
+
 
 class smallUnet(nn.Module):
-    '''
+    """
     Builds a fully convolutional Unet-like neural network model
     Args:
         nb_classes: int
@@ -23,69 +24,85 @@ class smallUnet(nn.Module):
             use / not use batch normalization after each convolutional layer
         upsampling mode: str
             "bilinear" or "nearest" upsampling method.
-            Bilinear is usually more accurate, but adds additional (small) 
+            Bilinear is usually more accurate, but adds additional (small)
             randomness; for full reproducibility, consider using 'nearest'
             (this assumes that all other sources of randomness are fixed)
-    '''
-    def __init__(self,
-                 nb_classes=2,
-                 nb_filters=16,
-                 use_dropout=False,
-                 batch_norm=True,
-                 upsampling_mode="nearest"):
-        super(smallUnet, self).__init__()
-        dropout_vals = [.1, .2, .1] if use_dropout else [0, 0, 0]               
-        
-        self.c1 = conv2dblock(
-            nb_layers=1, input_channels=1, output_channels=nb_filters,
-            use_batchnorm=batch_norm)
+    """
 
-        self.c2 = conv2dblock(
-            2, nb_filters, nb_filters*2,
-            use_batchnorm=batch_norm)
+    def __init__(
+        self,
+        nb_classes=2,
+        nb_filters=16,
+        use_dropout=False,
+        batch_norm=True,
+        upsampling_mode="nearest",
+    ):
+        super(smallUnet, self).__init__()
+        dropout_vals = [0.1, 0.2, 0.1] if use_dropout else [0, 0, 0]
+
+        self.c1 = conv2dblock(
+            nb_layers=1,
+            input_channels=1,
+            output_channels=nb_filters,
+            use_batchnorm=batch_norm,
+        )
+
+        self.c2 = conv2dblock(2, nb_filters, nb_filters * 2, use_batchnorm=batch_norm)
 
         self.c3 = conv2dblock(
-            2, nb_filters*2, nb_filters*4,
+            2,
+            nb_filters * 2,
+            nb_filters * 4,
             use_batchnorm=batch_norm,
-            dropout_=dropout_vals[0])
+            dropout_=dropout_vals[0],
+        )
 
         self.bn = conv2dblock(
-            3, nb_filters*4, nb_filters*8,
+            3,
+            nb_filters * 4,
+            nb_filters * 8,
             use_batchnorm=batch_norm,
-            dropout_=dropout_vals[1])
+            dropout_=dropout_vals[1],
+        )
 
         self.upsample_block1 = upsample_block(
-            nb_filters*8, nb_filters*4,
-            mode=upsampling_mode)
+            nb_filters * 8, nb_filters * 4, mode=upsampling_mode
+        )
 
         self.c4 = conv2dblock(
-            2, nb_filters*8, nb_filters*4,
+            2,
+            nb_filters * 8,
+            nb_filters * 4,
             use_batchnorm=batch_norm,
-            dropout_=dropout_vals[2])
+            dropout_=dropout_vals[2],
+        )
 
         self.upsample_block2 = upsample_block(
-            nb_filters*4, nb_filters*2,
-            mode=upsampling_mode)
+            nb_filters * 4, nb_filters * 2, mode=upsampling_mode
+        )
 
         self.c5 = conv2dblock(
-            2, nb_filters*4, nb_filters*2,
-            use_batchnorm=batch_norm)
+            2, nb_filters * 4, nb_filters * 2, use_batchnorm=batch_norm
+        )
 
         self.upsample_block3 = upsample_block(
-            nb_filters*2, nb_filters,
-            mode=upsampling_mode)
+            nb_filters * 2, nb_filters, mode=upsampling_mode
+        )
 
-        self.c6 = conv2dblock(
-            1, nb_filters*2, nb_filters,
-            use_batchnorm=batch_norm)
-        
-        self.px = nn.Conv2d(in_channels=nb_filters, out_channels=nb_classes, 
-                            kernel_size=1, stride=1, padding=0)
+        self.c6 = conv2dblock(1, nb_filters * 2, nb_filters, use_batchnorm=batch_norm)
+
+        self.px = nn.Conv2d(
+            in_channels=nb_filters,
+            out_channels=nb_classes,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+        )
         self.maxpool = F.max_pool2d
         self.concat = torch.cat
 
     def forward(self, x):
-        '''Defines a forward path'''
+        """Defines a forward path"""
         # Contracting path
         c1 = self.c1(x)
         d1 = self.maxpool(c1, kernel_size=2, stride=2)
@@ -110,26 +127,39 @@ class smallUnet(nn.Module):
         return px
 
 
-
 class conv2dblock(nn.Module):
-    '''
+    """
     Creates block(s) consisting of convolutional
     layer, leaky relu and (optionally) dropout and
     batch normalization
-    '''
-    def __init__(self, nb_layers, input_channels, output_channels,
-                 kernel_size=3, stride=1, padding=1, use_batchnorm=False,
-                 lrelu_a=0.01, dropout_=0):
-        '''Initializes module parameters'''
+    """
+
+    def __init__(
+        self,
+        nb_layers,
+        input_channels,
+        output_channels,
+        kernel_size=3,
+        stride=1,
+        padding=1,
+        use_batchnorm=False,
+        lrelu_a=0.01,
+        dropout_=0,
+    ):
+        """Initializes module parameters"""
         super(conv2dblock, self).__init__()
         block = []
         for idx in range(nb_layers):
             input_channels = output_channels if idx > 0 else input_channels
-            block.append(nn.Conv2d(input_channels,
-                                   output_channels,
-                                   kernel_size=kernel_size,
-                                   stride=stride,
-                                   padding=padding))
+            block.append(
+                nn.Conv2d(
+                    input_channels,
+                    output_channels,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=padding,
+                )
+            )
             if dropout_ > 0:
                 block.append(nn.Dropout(dropout_))
             block.append(nn.LeakyReLU(negative_slope=lrelu_a))
@@ -138,47 +168,47 @@ class conv2dblock(nn.Module):
         self.block = nn.Sequential(*block)
 
     def forward(self, x):
-        '''Forward path'''
+        """Forward path"""
         output = self.block(x)
         return output
 
 
 class upsample_block(nn.Module):
-    '''
-    Defines upsampling block. The upsampling is performed 
+    """
+    Defines upsampling block. The upsampling is performed
     using bilinear or nearest interpolation followed by 1-by-1
     convolution (the latter can be used to reduce
     a number of feature channels).
-    '''
-    def __init__(self,
-                 input_channels,
-                 output_channels,
-                 scale_factor=2,
-                 mode="bilinear"):
-        '''Initializes module parameters'''
+    """
+
+    def __init__(
+        self, input_channels, output_channels, scale_factor=2, mode="bilinear"
+    ):
+        """Initializes module parameters"""
         super(upsample_block, self).__init__()
-        assert mode == 'bilinear' or mode == 'nearest',\
-            "use 'bilinear' or 'nearest' for upsampling mode"
+        assert (
+            mode == "bilinear" or mode == "nearest"
+        ), "use 'bilinear' or 'nearest' for upsampling mode"
         self.scale_factor = scale_factor
         self.mode = mode
         self.conv = nn.Conv2d(
-            input_channels, output_channels,
-            kernel_size=1, stride=1, padding=0)
+            input_channels, output_channels, kernel_size=1, stride=1, padding=0
+        )
         self.upsample2x = nn.ConvTranspose2d(
             input_channels,
             input_channels,
             kernel_size=3,
             stride=2,
             padding=(1, 1),
-            output_padding=(1, 1))
+            output_padding=(1, 1),
+        )
 
     def forward(self, x):
-        '''Defines a forward path'''
+        """Defines a forward path"""
         if self.scale_factor == 2:
-            x  = self.upsample2x(x)
+            x = self.upsample2x(x)
         else:
-            x = F.interpolate(
-                x, scale_factor=self.scale_factor, mode=self.mode)
+            x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
         return self.conv(x)
 
 
