@@ -1,7 +1,5 @@
-""" helper functions for when working with any image data
-
-None of these functions should take class objects, but should work on raw arrays to keep
-them applicable for more situations.
+"""
+Helper functions for when working with any image data
 
 Arthur McCray
 amccray@anl.gov
@@ -207,18 +205,18 @@ def show_fft(fft, title=None, **kwargs):
     show_im(fft, title=title, **kwargs)
 
 
-def show_im_peaks(im=None, peaks=None, peaks2=None, size=None, title=None, **kwargs):
+def show_im_points(im=None, points=None, points2=None, size=None, title=None, **kwargs):
     """
-    peaks an array [[y1,x1], [y2,x2], ...]
+    points an array [[y1,x1], [y2,x2], ...]
     """
     _fig, ax = plt.subplots()
     if im is not None:
         ax.matshow(im, cmap="gray", **kwargs)
-    if peaks is not None:
-        peaks = np.array(peaks)
+    if points is not None:
+        points = np.array(points)
         ax.plot(
-            peaks[:, 1],
-            peaks[:, 0],
+            points[:, 1],
+            points[:, 0],
             c="r",
             alpha=0.9,
             ms=size,
@@ -226,11 +224,11 @@ def show_im_peaks(im=None, peaks=None, peaks2=None, size=None, title=None, **kwa
             fillstyle="none",
             linestyle="none",
         )
-    if peaks2 is not None:
-        peaks2 = np.array(peaks2)
+    if points2 is not None:
+        points2 = np.array(points2)
         ax.plot(
-            peaks2[:, 1],
-            peaks2[:, 0],
+            points2[:, 1],
+            points2[:, 0],
             c="b",
             alpha=0.9,
             ms=size,
