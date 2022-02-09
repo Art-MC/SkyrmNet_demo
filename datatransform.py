@@ -5,15 +5,56 @@ Module for image transformations relevant to data augmentation
 Created by Maxim Ziatdinov (maxim.ziatdinov@ai4microscopy.com)
 """
 
-from typing import Optional, Callable, Union, List, Tuple
+import os
+import textwrap
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
-
-from scipy import stats, ndimage
+from scipy import ndimage, stats
 from skimage import exposure
 from skimage.transform import resize, rotate
+
 # from skimage.transform import resize_local_mean # requires scikit-image 0.19
 from skimage.util import random_noise
+
+
+def training_log(
+    name=None, savedir=None, **kwargs,
+):
+
+    if not os.path.exists(savedir):
+        os.makedirs(savedir)
+
+    log_name = os.path.join(savedir, name + "_training_data_params.txt")
+
+    log = f"""\
+    NN name: {name}
+    final NN savepath: {os.path.join(os.path.abspath(savedir), name + '_final.pt')}
+    images shape: {kwargs.get("images_shape")}
+    labels shape: {kwargs.get("labels_shape")}
+    test split: {kwargs.get("test_split")}
+    batch size: {kwargs.get("batch_size")}
+    epochs: {kwargs.get("epochs")}
+
+    number channels: {kwargs.get("n_channels")}
+    dim_order_in: {kwargs.get("dim_order_in")}
+    dim_order_out: {kwargs.get("dim_order_out")}
+
+    Noise added to training/test data using atomai.transforms.datatransform():
+    gauss_noise: {kwargs.get("gauss_noise")}
+    poisson_noise: {kwargs.get("poisson_noise")}
+    salt_and_pepper: {kwargs.get("salt_and_pepper")}
+    contrast: {kwargs.get("contrast")}
+    blur: {kwargs.get("blur")}
+    zoom: {kwargs.get("zoom")}
+    rotation: {kwargs.get("rotation")}
+    seed: {kwargs.get("seed")}
+
+    notes: {kwargs.get("notes")}"""
+
+    with open(log_name, "w") as txt:
+        txt.write("\n".join([m.lstrip() for m in log.split("\n")]))
+    print(f"Saved training params file to:\n", os.path.abspath(log_name))
 
 
 class datatransform:
@@ -28,9 +69,9 @@ class datatransform:
             Channel first or channel last ordering in the output masks
         seed (int):
             Determenism
-        classifier (bool): 
+        classifier (bool):
             Whether or not this is for a classification problem (will round
-            labels to integer values at times) 
+            labels to integer values at times)
         **custom_transform (Callable):
             Python function that takes two ndarrays (images and masks) as
             input, applies a set of transformation to them, and returns the two
@@ -63,14 +104,17 @@ class datatransform:
             Values for image resizing
             [downscale factor (default: 2), upscale factor (default:1.5)]
     """
-    def __init__(self,
-                 n_channels: int = None,
-                 dim_order_in: str = 'channel_last',
-                 dim_order_out: str = 'channel_first',
-                 squeeze_channels: bool = False,
-                 seed: Optional[int] = None,
-                 classifier = True, 
-                 **kwargs: Union[bool, Callable, List, Tuple]) -> None:
+
+    def __init__(
+        self,
+        n_channels: int = None,
+        dim_order_in: str = "channel_last",
+        dim_order_out: str = "channel_first",
+        squeeze_channels: bool = False,
+        seed: Optional[int] = None,
+        classifier=True,
+        **kwargs: Union[bool, Callable, List, Tuple],
+    ) -> None:
         """
         Initializes image transformation parameters
         """
@@ -79,39 +123,39 @@ class datatransform:
         self.dim_order_out = dim_order_out
         self.squeeze = squeeze_channels
         self.classifier = classifier
-        self.custom_transform = kwargs.get('custom_transform')
-        self.rotation = kwargs.get('rotation')
-        self.background = kwargs.get('background')
-        self.gauss = kwargs.get('gauss_noise')
+        self.custom_transform = kwargs.get("custom_transform")
+        self.rotation = kwargs.get("rotation")
+        self.background = kwargs.get("background")
+        self.gauss = kwargs.get("gauss_noise")
         if self.gauss is True:
             self.gauss = [0, 50]
-        self.jitter = kwargs.get('jitter')
+        self.jitter = kwargs.get("jitter")
         if self.jitter is True:
             self.jitter = [0, 50]
-        self.poisson = kwargs.get('poisson_noise')
+        self.poisson = kwargs.get("poisson_noise")
         if self.poisson is True:
             self.poisson = [30, 40]
-        self.salt_and_pepper = kwargs.get('salt_and_pepper')
+        self.salt_and_pepper = kwargs.get("salt_and_pepper")
         if self.salt_and_pepper is True:
             self.salt_and_pepper = [0, 50]
-        self.blur = kwargs.get('blur')
+        self.blur = kwargs.get("blur")
         if self.blur is True:
             self.blur = [1, 50]
-        self.contrast = kwargs.get('contrast')
+        self.contrast = kwargs.get("contrast")
         if self.contrast is True:
             self.contrast = [5, 20]
-        self.zoom = kwargs.get('zoom')
+        self.zoom = kwargs.get("zoom")
         if self.zoom is True:
             self.zoom = 2
-        self.resize = kwargs.get('resize')
+        self.resize = kwargs.get("resize")
         if self.resize is True:
             self.resize = [2, 1.5]
         if seed is not None:
             np.random.seed(seed)
 
-    def apply_gauss(self,
-                    X_batch: np.ndarray,
-                    y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_gauss(
+        self, X_batch: np.ndarray, y_batch: np.ndarray
+    ) -> Tuple[np.ndarray]:
         """
         Random application of gaussian noise to each training inage in a stack
         """
@@ -119,13 +163,12 @@ class datatransform:
         X_batch_noisy = np.zeros((n, h, w))
         for i, img in enumerate(X_batch):
             gauss_var = np.random.randint(self.gauss[0], self.gauss[1])
-            X_batch_noisy[i] = random_noise(
-                img, mode='gaussian', var=1e-4*gauss_var)
+            X_batch_noisy[i] = random_noise(img, mode="gaussian", var=1e-4 * gauss_var)
         return X_batch_noisy, y_batch
 
-    def apply_jitter(self,
-                     X_batch: np.ndarray,
-                     y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_jitter(
+        self, X_batch: np.ndarray, y_batch: np.ndarray
+    ) -> Tuple[np.ndarray]:
         """
         Random application of jitter noise to each training image in a stack
         """
@@ -134,20 +177,24 @@ class datatransform:
         for i, img in enumerate(X_batch):
             jitter_amount = np.random.randint(self.jitter[0], self.jitter[1]) / 10
             shift_arr = stats.poisson.rvs(jitter_amount, loc=0, size=h)
-            X_batch_noisy[i] = np.array([np.roll(row, z) for row, z in zip(img, shift_arr)])
+            X_batch_noisy[i] = np.array(
+                [np.roll(row, z) for row, z in zip(img, shift_arr)]
+            )
         return X_batch_noisy, y_batch
 
-    def apply_poisson(self,
-                      X_batch: np.ndarray,
-                      y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_poisson(
+        self, X_batch: np.ndarray, y_batch: np.ndarray
+    ) -> Tuple[np.ndarray]:
         """
         Random application of poisson noise to each training inage in a stack
         """
+
         def make_pnoise(image, l):
             vals = len(np.unique(image))
-            vals = (50/l) ** np.ceil(np.log2(vals))
+            vals = (50 / l) ** np.ceil(np.log2(vals))
             image_n_filt = np.random.poisson(image * vals) / float(vals)
             return image_n_filt
+
         n, h, w = X_batch.shape[0:3]
         X_batch_noisy = np.zeros((n, h, w))
         for i, img in enumerate(X_batch):
@@ -155,9 +202,7 @@ class datatransform:
             X_batch_noisy[i] = make_pnoise(img, poisson_l)
         return X_batch_noisy, y_batch
 
-    def apply_sp(self,
-                 X_batch: np.ndarray,
-                 y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_sp(self, X_batch: np.ndarray, y_batch: np.ndarray) -> Tuple[np.ndarray]:
         """
         Random application of salt & pepper noise to each training inage in a stack
         """
@@ -165,13 +210,12 @@ class datatransform:
         X_batch_noisy = np.zeros((n, h, w))
         for i, img in enumerate(X_batch):
             sp_amount = np.random.randint(
-                self.salt_and_pepper[0], self.salt_and_pepper[1])
-            X_batch_noisy[i] = random_noise(img, mode='s&p', amount=sp_amount*1e-3)
+                self.salt_and_pepper[0], self.salt_and_pepper[1]
+            )
+            X_batch_noisy[i] = random_noise(img, mode="s&p", amount=sp_amount * 1e-3)
         return X_batch_noisy, y_batch
 
-    def apply_blur(self,
-                   X_batch: np.ndarray,
-                   y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_blur(self, X_batch: np.ndarray, y_batch: np.ndarray) -> Tuple[np.ndarray]:
         """
         Random blurring of each training image in a stack
         """
@@ -179,12 +223,12 @@ class datatransform:
         X_batch_noisy = np.zeros((n, h, w))
         for i, img in enumerate(X_batch):
             blur_amount = np.random.randint(self.blur[0], self.blur[1])
-            X_batch_noisy[i] = ndimage.filters.gaussian_filter(img, blur_amount*5e-2)
+            X_batch_noisy[i] = ndimage.filters.gaussian_filter(img, blur_amount * 5e-2)
         return X_batch_noisy, y_batch
 
-    def apply_contrast(self,
-                       X_batch: np.ndarray,
-                       y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_contrast(
+        self, X_batch: np.ndarray, y_batch: np.ndarray
+    ) -> Tuple[np.ndarray]:
         """
         Randomly change level of contrast of each training image on a stack
         """
@@ -192,12 +236,10 @@ class datatransform:
         X_batch_noisy = np.zeros((n, h, w))
         for i, img in enumerate(X_batch):
             clevel = np.random.randint(self.contrast[0], self.contrast[1])
-            X_batch_noisy[i] = exposure.adjust_gamma(img, clevel/10)
+            X_batch_noisy[i] = exposure.adjust_gamma(img, clevel / 10)
         return X_batch_noisy, y_batch
 
-    def apply_zoom(self,
-                   X_batch: np.ndarray,
-                   y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_zoom(self, X_batch: np.ndarray, y_batch: np.ndarray) -> Tuple[np.ndarray]:
         """
         Zoom-in achieved by cropping image and then resizing
         to the original size. The zooming window is a square.
@@ -211,12 +253,14 @@ class datatransform:
         for i, (img, gt) in enumerate(zip(X_batch, y_batch)):
             zv = np.random.choice(zoom_values)
             img = img[
-                (h // 2) - (zv // 2): (h // 2) + (zv // 2),
-                (w // 2) - (zv // 2): (w // 2) + (zv // 2)]
+                (h // 2) - (zv // 2) : (h // 2) + (zv // 2),
+                (w // 2) - (zv // 2) : (w // 2) + (zv // 2),
+            ]
             gt = gt[
-                (h // 2) - (zv // 2): (h // 2) + (zv // 2),
-                (w // 2) - (zv // 2): (w // 2) + (zv // 2)]
-            img = resize(img, (shortdim, shortdim), order=3) # bi-cubic
+                (h // 2) - (zv // 2) : (h // 2) + (zv // 2),
+                (w // 2) - (zv // 2) : (w // 2) + (zv // 2),
+            ]
+            img = resize(img, (shortdim, shortdim), order=3)  # bi-cubic
             gt = resize(gt, (shortdim, shortdim), order=3)
             img = np.clip(img, 0, 1)
             if len(gt.shape) != 3:
@@ -225,18 +269,21 @@ class datatransform:
             y_batch_z[i] = gt
         return X_batch_z, y_batch_z
 
-    def apply_background(self,
-                         X_batch: np.ndarray,
-                         y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_background(
+        self, X_batch: np.ndarray, y_batch: np.ndarray
+    ) -> Tuple[np.ndarray]:
         """
         Emulates thickness variation in STEM or height variation in STM
         """
+
         def gauss2d(xy, x0, y0, a, b, fwhm):
-            return np.exp(-np.log(2)*(a*(xy[0]-x0)**2 + b*(xy[1]-y0)**2) / fwhm**2)
+            return np.exp(
+                -np.log(2) * (a * (xy[0] - x0) ** 2 + b * (xy[1] - y0) ** 2) / fwhm ** 2
+            )
+
         n, h, w = X_batch.shape[0:3]
         X_batch_b = np.zeros((n, h, w))
-        x, y = np.meshgrid(
-            np.linspace(0, h, h), np.linspace(0, w, w), indexing='ij')
+        x, y = np.meshgrid(np.linspace(0, h, h), np.linspace(0, w, w), indexing="ij")
         for i, img in enumerate(X_batch):
             x0 = np.random.randint(0, h - h // 4)
             y0 = np.random.randint(0, w - w // 4)
@@ -247,9 +294,9 @@ class datatransform:
             X_batch_b[i] = img
         return X_batch_b, y_batch
 
-    def apply_rotation(self,
-                       X_batch: np.ndarray,
-                       y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_rotation(
+        self, X_batch: np.ndarray, y_batch: np.ndarray
+    ) -> Tuple[np.ndarray]:
         """
         Flips and rotates training images and correponding ground truth images
         """
@@ -264,7 +311,7 @@ class datatransform:
             elif flip_type == 2 and h == w:
                 img = rotate(img, 90)
                 gt = rotate(gt, 90)
-            elif flip_type == 1: 
+            elif flip_type == 1:
                 img = np.flipud(img)
                 gt = np.flipud(gt)
             elif flip_type == 0:
@@ -279,9 +326,9 @@ class datatransform:
             y_batch_r[i] = gt
         return X_batch_r, y_batch_r
 
-    def apply_imresize(self,
-                       X_batch: np.ndarray,
-                       y_batch: np.ndarray) -> Tuple[np.ndarray]:
+    def apply_imresize(
+        self, X_batch: np.ndarray, y_batch: np.ndarray
+    ) -> Tuple[np.ndarray]:
         """
         Resizes training images and corresponding ground truth images
         """
@@ -289,8 +336,7 @@ class datatransform:
         rs_factor_u = self.resize[1]
         n, h, w = X_batch.shape[0:3]
         s, p = 0.03, 8
-        while (np.round((h * s), 7) % p != 0
-               and np.round((w * s), 7) % p != 0):
+        while np.round((h * s), 7) % p != 0 and np.round((w * s), 7) % p != 0:
             s += 1e-5
         rs_h = (np.arange(rs_factor_d, rs_factor_u, s) * h).astype(np.int64)
         rs_w = (np.arange(rs_factor_d, rs_factor_u, s) * w).astype(np.int64)
@@ -300,13 +346,15 @@ class datatransform:
         X_batch_r = np.zeros((n, rs_h[rs_idx], rs_w[rs_idx]))
         y_batch_r = np.zeros((n, rs_h[rs_idx], rs_w[rs_idx], self.ch))
         for i, (img, gt) in enumerate(zip(X_batch, y_batch)):
-            if False: # if rs_h[rs_idx] < h: TODO rever this when scikit-image 0.19.0 
-                # equivalent to openCV inter_area 
-                img = resize_local_mean(img, (rs_w[rs_idx], rs_h[rs_idx]), grid_mode=True) 
-                gt = resize_local_mean(gt, (rs_w[rs_idx], rs_h[rs_idx]), grid_mode=True) 
+            if False:  # if rs_h[rs_idx] < h: TODO rever this when scikit-image 0.19.0
+                # equivalent to openCV inter_area
+                img = resize_local_mean(
+                    img, (rs_w[rs_idx], rs_h[rs_idx]), grid_mode=True
+                )
+                gt = resize_local_mean(gt, (rs_w[rs_idx], rs_h[rs_idx]), grid_mode=True)
             else:
                 # inter_cubic
-                img = resize(img, (rs_w[rs_idx], rs_h[rs_idx]), order=3) 
+                img = resize(img, (rs_w[rs_idx], rs_h[rs_idx]), order=3)
                 gt = resize(gt, (rs_w[rs_idx], rs_h[rs_idx]), order=3)
             if len(gt.shape) < 3:
                 gt = np.expand_dims(gt, axis=-1)
@@ -323,19 +371,21 @@ class datatransform:
         The operations that are not specified in kwargs are skipped.
         """
         same_dim = images.ndim + 1 == targets.ndim == 4 and self.ch is not None
-        if self.dim_order_in == 'channel_first' and same_dim:
+        if self.dim_order_in == "channel_first" and same_dim:
             targets = np.transpose(targets, [0, 2, 3, 1])
-        elif self.dim_order_in == 'channel_last':
+        elif self.dim_order_in == "channel_last":
             pass
         else:
             raise NotImplementedError("Use 'channel_first' or 'channel_last'")
         images = (images - images.min()) / images.ptp()
         if self.classifier:
             if targets.dtype != int:
-                print("Rounding labels to nearest int for classification or segmentation")
+                print(
+                    "Rounding labels to nearest int for classification or segmentation"
+                )
                 targets = np.around(targets)
         else:
-            print("Augmenting image data not for classification or segmentation") 
+            print("Augmenting image data not for classification or segmentation")
         if self.custom_transform is not None:
             images, targets = self.custom_transform(images, targets)
         if self.rotation and same_dim:
@@ -351,7 +401,9 @@ class datatransform:
             images, targets = self.apply_jitter(images, targets)
         if isinstance(self.poisson, list) or isinstance(self.poisson, tuple):
             images, targets = self.apply_poisson(images, targets)
-        if isinstance(self.salt_and_pepper, list) or isinstance(self.salt_and_pepper, tuple):
+        if isinstance(self.salt_and_pepper, list) or isinstance(
+            self.salt_and_pepper, tuple
+        ):
             images, targets = self.apply_sp(images, targets)
         if isinstance(self.blur, list) or isinstance(self.blur, tuple):
             images, targets = self.apply_blur(images, targets)
@@ -361,12 +413,12 @@ class datatransform:
             images, targets = self.apply_background(images, targets)
         if self.squeeze and same_dim:
             images, targets = squeeze_channels(images, targets)
-        if self.dim_order_out == 'channel_first':
+        if self.dim_order_out == "channel_first":
             images = np.expand_dims(images, axis=1)
             if same_dim:
                 if self.squeeze is None or self.ch == 1:
                     targets = np.transpose(targets, (0, 3, 1, 2))
-        elif self.dim_order_out == 'channel_last':
+        elif self.dim_order_out == "channel_last":
             images = np.expand_dims(images, axis=3)
         else:
             raise NotImplementedError("Use 'channel_first' or 'channel_last'")
@@ -374,9 +426,9 @@ class datatransform:
         return images, targets
 
 
-def squeeze_channels(images: np.ndarray,
-                     labels: np.ndarray,
-                     clip: bool = False) -> Tuple[np.ndarray]:
+def squeeze_channels(
+    images: np.ndarray, labels: np.ndarray, clip: bool = False
+) -> Tuple[np.ndarray]:
     """
     Squeezes channels in each training image and
     filters out image-label pairs where some pixels have multiple values.
