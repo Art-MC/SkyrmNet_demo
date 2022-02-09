@@ -1,12 +1,14 @@
 """
 A fully convolutional U-net like neural network for image segmentation.
+
+Arthur McCray
+amccray@anl.gov
 """
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-import numpy as np
 
 
 class smallUnet(nn.Module):
@@ -146,7 +148,7 @@ class conv2dblock(nn.Module):
         lrelu_a=0.01,
         dropout_=0,
     ):
-        """Initializes module parameters"""
+        # Initializes module parameters
         super(conv2dblock, self).__init__()
         block = []
         for idx in range(nb_layers):

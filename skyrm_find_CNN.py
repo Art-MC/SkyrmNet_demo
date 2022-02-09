@@ -1,10 +1,14 @@
-# import cv2
+"""
+Class for holding the NN and processing the output
+
+Arthur McCray
+amccray@anl.gov
+"""
+
 import numpy as np
 import scipy.ndimage as ndi
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 
 from smallUnet import smallUnet
 
@@ -12,31 +16,61 @@ from smallUnet import smallUnet
 class trained_NN(object):
     def __init__(self, path, cuda=True, gpu=0):
         model = smallUnet()
-        self.cuda = cuda
-        if cuda:
+        if gpu == "cpu":
+            self.cuda = False
+        else:
+            self.cuda = cuda
+        self.gpu = gpu
+        self.scale = None
+        self.prediction = None
+        if self.cuda:
             model.load_state_dict(torch.load(path))
             model.cuda(gpu)
-
         else:
-            print("loading without cuda")
+            print("Loading the NN on the CPU")
             model.load_state_dict(torch.load(path, map_location=torch.device("cpu")))
 
         model.eval()
         self.model = model
 
-    def find_skyrms(self, image, tilt_dir, thresh=0.5, gpu=0):
+    def find_skyrms(self, image, tilt_dir, thresh=0.5, scale=None):
+        """Makes a prediction using the NN on image, then also finds the centers of the
+        found skyrmions on that image. To just find the skyrmions on a previously made
+        prediction with a new threshold value, update model.threshold and run
+        model.get_centers() which will return centers.
 
+        The model.prediction will of course be scaled by self.scale, and in get_centers
+        the rescaling will be applied
+
+        Args:
+            image (ndarray): Image from which to find skyrms
+            tilt_dir (float): direction along which sample is tilted
+            thresh (float, optional): Prediction threshold. Defaults to 0.5.
+            scale (float, optional): Scaling factor of image before prediction. Scale is
+                the factor by which the image will be rescaled before inputting into the
+                NN. Output skyrmion locations will be appropriately rescaled back to the
+                original input image.
+
+        Returns:
+            ndarray: [[y1,x1], [y2,x2], ...] array of skyrmion center positions.
+        """
+        self.threshold = thresh
         ## apply rotation
         dimy, dimx = image.shape
-        imagerot = ndi.rotate(image, 180 - tilt_dir)
+        if scale is not None:
+            self.scale = scale
+        if self.scale is not None:
+            dimy, dimx = round(dimy * scale), round(dimx * scale)
+            image = norm_image(rescale(image, scale))
+
+        imagerot = ndi.rotate(image, 90 + tilt_dir)
         image2 = center_pad_pwr2(imagerot)
-        ndimy, ndimx = image2.shape
 
         # Convert to 4D tensor (required, even if it is a single image)
         image4d = image2[None, None, ...]
         # Convert to pytorch format and move to GPU
         if self.cuda:
-            image4d_ = torch.from_numpy(image4d).float().cuda(gpu)
+            image4d_ = torch.from_numpy(image4d).float().cuda(self.gpu)
         else:
             image4d_ = torch.from_numpy(image4d).float()
 
@@ -45,19 +79,15 @@ class trained_NN(object):
         prediction = F.softmax(prediction, dim=1).cpu().detach().numpy()
         prediction = np.transpose(prediction, [0, 2, 3, 1])
         # get coordinates
-
-        # prediction = ndi.rotate(prediction, theta-180)
-        # prediction[0] = ndi.rotate(prediction[0,:,:,:], theta-180, axes=(0,1))
-        prediction2 = ndi.rotate(prediction[0, :, :, :], tilt_dir - 180, axes=(0, 1))
+        prediction2 = ndi.rotate(
+            prediction[0, :, :, :], -1 * (90 + tilt_dir), axes=(0, 1)
+        )
 
         prediction2 = center_crop_im(
             prediction2, (dimy, dimx), dim_order_in="channels_last"
         )[:, :, ::-1]
         self.prediction = prediction2
-        coordinates_e = Finder(
-            self.prediction[None, ...], threshold=thresh
-        ).get_all_coordinates()
-        centers = coordinates_e[0][:, :2]
+        centers = self.get_centers()
         return centers
 
     def rng_seed(self, seed):
@@ -67,6 +97,15 @@ class trained_NN(object):
         torch.cuda.manual_seed(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+    def get_centers(self):
+        FA = FindObjects(self.prediction[None, ...], threshold=self.threshold)
+        coords = FA.get_all_coordinates()
+        centers = coords[0][:, :2]
+        if self.scale is not None:
+            centers /= self.scale
+
+        return centers
 
 
 def center_pad_pwr2(image):
@@ -99,7 +138,14 @@ def center_crop_im(image, shape, dim_order_in="channels_last"):
         return image[:, cropt:-cropb, cropl:-cropr]
 
 
-class Finder:
+def norm_image(image):
+    """Normalize image intensities to between 0 and 1"""
+    image = image - np.min(image)
+    image = image / np.max(image)
+    return image
+
+
+class FindObjects:
     """
     Transforms pixel data from NN output into coordinate data
     """
@@ -125,9 +171,8 @@ class Finder:
         self.dist_edge = dist_edge
 
     def get_all_coordinates(self):
-        """Extract all object center coordinates in image
-        via CoM method & store data as a dictionary
-        (key: frame number)"""
+        """Extract all center coordinates in image via CoM method & store data as a
+        dictionary (key: frame number)"""
 
         def find_com(image_data):
             """Find objects via center of mass methods"""
@@ -144,8 +189,6 @@ class Finder:
             category = np.empty((0, 1))
             # we assume that class backgrpund is always the last one
             for ch in range(decoded_img.shape[2] - 1):
-                # _, decoded_img_c = cv2.threshold(
-                # decoded_img[:, :, ch], self.threshold, 1, cv2.THRESH_BINARY)
                 decoded_img_c = np.array(
                     (decoded_img[:, :, ch] > self.threshold), dtype="int"
                 )
